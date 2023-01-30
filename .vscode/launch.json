@@ -20,8 +20,9 @@
             "program": "${workspaceFolder}/train.py",
             "console": "integratedTerminal",
             "args": [
-                "--batch_size=32",
+                "--batch_size=1",
                 "--compile=False",
+                "--max_iters=1000",
                 "--wandb_log=True"
             ],
         }
