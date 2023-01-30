@@ -10,6 +10,7 @@ https://github.com/huggingface/transformers/blob/main/src/transformers/models/gp
 import math
 from dataclasses import dataclass
 
+import copy
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -140,9 +141,21 @@ class GPT(nn.Module):
             if pn.endswith('c_proj.weight'):
                 torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
 
+        self.parameters_backup = copy.deepcopy(self.state_dict())
+
         # report number of parameters
         n_params = sum(p.numel() for p in self.parameters())
         print("number of parameters: %.2fM" % (n_params/1e6,))
+
+    def _update_parameters(self):
+        # Get difference of all network parameters compared to the backup
+        # self.load_state_dict({name : self.parameters_backup[name] + (weights_after[name] - self.parameters_backup[name]) * outerstepsize for name in self.parameters_backup})
+        diff = {}
+        for name in self.parameters_backup:
+            param = self.parameters_backup[name].to('cuda')
+            diff[name] = self.state_dict()[name] - param
+        # Continue here!
+        print("Updating parameters")
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):

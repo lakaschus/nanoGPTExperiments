@@ -33,7 +33,8 @@ from model import GPTConfig, GPT
 # default config values designed to train a gpt2 (124M) on OpenWebText
 # I/O
 out_dir = f'out/{time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())}'
-eval_interval = 400
+eval_interval = 200
+sleep_interval = 200
 log_interval = 1
 eval_iters = 20
 eval_only = False # if True, script exits right after the first eval
@@ -233,6 +234,11 @@ while True:
             param_group['lr'] = lr
     else:
         lr = learning_rate
+
+    # Let the network sleep and reflect
+    if iter_num % sleep_interval == 0 and iter_num > 0 and master_process:
+        model._update_parameters()
+        print("Letting the network sleep and reflect...")
 
     # evaluate the loss on train/val sets and write checkpoints
     if iter_num % eval_interval == 0 and master_process:

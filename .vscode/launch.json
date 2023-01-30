@@ -23,7 +23,8 @@
                 "--batch_size=1",
                 "--compile=False",
                 "--max_iters=1000",
-                "--wandb_log=True"
+                "--sleep_interval=10",
+                "--wandb_log=False"
             ],
         }
     ]
