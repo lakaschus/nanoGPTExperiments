@@ -21,6 +21,7 @@ import time
 import math
 import pickle
 from contextlib import nullcontext
+import json
 
 import numpy as np
 import torch
@@ -236,8 +237,8 @@ while True:
         lr = learning_rate
 
     # Let the network sleep and reflect
-    if iter_num % sleep_interval == 0 and iter_num > 0 and master_process:
-        model._update_parameters()
+    if iter_num % sleep_interval == 0 and iter_num > 0 and sleep_interval > 0 and master_process:
+        model._boost_weights(boost_factor=0.5, top_percentile=0.1)
         print("Letting the network sleep and reflect...")
 
     # evaluate the loss on train/val sets and write checkpoints
@@ -292,11 +293,18 @@ while True:
     if iter_num % log_interval == 0 and master_process:
         lossf = loss.item() # loss as float. TODO note CPU-GPU sync! profile, make sure not too slow
         print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms")
-    iter_num += 1
 
     # termination conditions
     if iter_num > max_iters:
+        with open(os.path.join(out_dir, 'results.txt'), 'w') as f:
+            f.write(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms")
+        # Write all parameters to a json file
+        with open(os.path.join(out_dir, 'params.json'), 'w') as f:
+            json.dump(config, f)
         break
+    
+    iter_num += 1
+    
 
 if ddp:
     destroy_process_group()

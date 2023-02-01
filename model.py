@@ -147,15 +147,22 @@ class GPT(nn.Module):
         n_params = sum(p.numel() for p in self.parameters())
         print("number of parameters: %.2fM" % (n_params/1e6,))
 
-    def _update_parameters(self):
+    def _boost_weights(self, boost_factor=0.5, top_percentile=0.2):
         # Get difference of all network parameters compared to the backup
-        # self.load_state_dict({name : self.parameters_backup[name] + (weights_after[name] - self.parameters_backup[name]) * outerstepsize for name in self.parameters_backup})
-        diff = {}
+        print("Boosting weights")
+        boosts = {}
         for name in self.parameters_backup:
             param = self.parameters_backup[name].to('cuda')
-            diff[name] = self.state_dict()[name] - param
-        # Continue here!
-        print("Updating parameters")
+            boosts[name] = self.mask_weights(self.state_dict()[name] - param, top_percentile)*boost_factor 
+        self.load_state_dict({name: self.state_dict()[name] + boosts[name] for name in self.state_dict()})
+        self.parameters_backup = copy.deepcopy(self.state_dict())
+
+    @staticmethod
+    def mask_weights(weight_matrix, top_percentile=0.2):
+        # Filter out all weights in the weight matrix that are not in the top 10% of the weight matrix
+        filter_val = torch.topk(weight_matrix.flatten(), int(weight_matrix.numel() * top_percentile))[0][-1]
+        new_matrix = torch.where(weight_matrix > filter_val, weight_matrix, 0)
+        return new_matrix
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):

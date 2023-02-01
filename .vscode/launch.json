@@ -20,11 +20,37 @@
             "program": "${workspaceFolder}/train.py",
             "console": "integratedTerminal",
             "args": [
-                "--batch_size=1",
+                "--batch_size=8",
                 "--compile=False",
-                "--max_iters=1000",
-                "--sleep_interval=10",
-                "--wandb_log=False"
+                "--max_iters=5000",
+                "--sleep_interval=-1",
+                "--wandb_log=False",
+                "--warmup_iters=200",
+                "--lr_decay_iters=5000",
+                "--block_size=128",
+                "--n_layer=4",
+                "--n_head=4", 
+                "--n_embd=400"
+            ],
+        },
+        {
+            "name": "Python: train.py sleep",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--batch_size=8",
+                "--compile=False",
+                "--max_iters=5000",
+                "--sleep_interval=250",
+                "--wandb_log=False",
+                "--warmup_iters=200",
+                "--lr_decay_iters=5000",
+                "--block_size=128",
+                "--n_layer=4",
+                "--n_head=4", 
+                "--n_embd=400"
             ],
         }
     ]
