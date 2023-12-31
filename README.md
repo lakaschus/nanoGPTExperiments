@@ -27,3 +27,11 @@ Remove the old environment if something went wrong:
 conda deactivate
 conda env remove --name nano_gpt --all
 ```
+
+## Local Metrics Tracking
+
+Make sure Mlflow is properly installed, then run 
+
+```mlflow ui```
+
+in a bash terminal.

@@ -20,7 +20,7 @@
         "warmup_iters": 50,
         "device": "cpu",
         "compile": false,
-        "experiment_name": "nano-gpt-training-autolog",
+        "experiment_name": "nano-gpt-training-local",
         "azure": false
     },
     "sample_params": {
