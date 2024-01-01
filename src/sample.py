@@ -86,6 +86,8 @@ with torch.no_grad():
     with ctx:
         for k in range(num_samples):
             y = model.generate(x, max_new_tokens, temperature=temperature, top_k=top_k)
+            # Get the activations from all layers
+            # TODO
             sample = decode(y[0].tolist())
             print(sample)
             # Add sample to outputs/sample.txt

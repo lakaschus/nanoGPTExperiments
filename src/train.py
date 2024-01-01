@@ -70,6 +70,8 @@ device = 'cuda' # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps'
 dtype = 'float16' # 'float32' or 'bfloat16'
 compile = True # use PyTorch 2.0 to compile the model to be faster
 experiment_name="nano-gpt-training"
+# Get random base_seed using time
+base_seed = int(time.time())
 # -----------------------------------------------------------------------------
 config_keys = [k for k,v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str))]
 exec(open('configurator.py').read()) # overrides from command line or config file
@@ -106,7 +108,7 @@ if master_process:
     os.makedirs(out_dir, exist_ok=True)
     # Verify that the out_dir was created
     assert os.path.exists(out_dir)
-torch.manual_seed(1337 + seed_offset)
+torch.manual_seed(base_seed + seed_offset)
 torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
 torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
 device_type = 'cuda' if 'cuda' in device else 'cpu' # for later use in torch.autocast

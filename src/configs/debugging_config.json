@@ -1,4 +1,14 @@
 {
+    "pipeline_params": {
+        "hyperparameter_tuning": [{
+            "parameter": "base_seed",
+            "number_of_trials": 10,
+            "range": [
+                0,
+                10
+            ]
+        }]
+    },
     "train_params": {
         "out_dir": "./outputs",
         "eval_interval": 50,
@@ -21,7 +31,8 @@
         "device": "cpu",
         "compile": false,
         "experiment_name": "nano-gpt-training-local",
-        "azure": false
+        "azure": false,
+        "base_seed": "random"
     },
     "sample_params": {
         "out_dir": "./outputs",
