@@ -1,3 +1,10 @@
 {
-    "jupyter.debugJustMyCode": false
+    "jupyter.debugJustMyCode": false,
+    "python.terminal.activateEnvironment": true,
+    "terminal.integrated.env.linux": {
+        "PYTHONPATH": "C:\\Users\\d92343\\AppData\\Local\\mambaforge\\envs\\nano_gpt\\python.exe"
+    },
+    "terminal.integrated.env.windows": {
+        "PYTHONPATH": "C:\\Users\\d92343\\AppData\\Local\\mambaforge\\envs\\nano_gpt\\python.exe"
+    },
 }

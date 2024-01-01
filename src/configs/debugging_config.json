@@ -2,10 +2,20 @@
     "pipeline_params": {
         "hyperparameter_tuning": [{
             "parameter": "base_seed",
-            "number_of_trials": 10,
+            "type": "int",
+            "number_of_trials": 5,
             "range": [
                 0,
-                10
+                100
+            ]
+        },
+        {
+            "parameter": "weight_init_std",
+            "number_of_trials": 2,
+            "type": "float",
+            "range": [
+                0.02,
+                0.5
             ]
         }]
     },

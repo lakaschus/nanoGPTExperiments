@@ -1,7 +1,7 @@
 import logging
 import os
 import subprocess
-
+import numpy as np
 import json
 import argparse
 
@@ -9,7 +9,7 @@ import itertools
 
 def hyperparameter_grid(hyperparameter_dict: dict):
     """
-    Generates a hyperparameter grid.
+    Generates a hyperparameter grid for both integer and float parameters.
     
     Args:
     hyperparameter_dict (dict): A dictionary containing hyperparameters information.
@@ -27,7 +27,15 @@ def hyperparameter_grid(hyperparameter_dict: dict):
     # Populate the lists with parameter names and their ranges
     for parameter_info in tuning_info:
         name = parameter_info.get("parameter")
-        values = range(parameter_info.get("range")[0], parameter_info.get("range")[1] + 1)
+        param_type = parameter_info.get("type", "int")
+        start, end = parameter_info.get("range")
+        number_of_trials = parameter_info.get("number_of_trials", 2)
+
+        if param_type == "float":
+            values = np.linspace(start, end, number_of_trials)
+        else:  # default to int
+            values = range(start, end + 1, int((end + 1 - start) / number_of_trials))
+
         parameter_names.append(name)
         parameter_values.append(values)
 
@@ -38,7 +46,6 @@ def hyperparameter_grid(hyperparameter_dict: dict):
     grid_dicts = [dict(zip(parameter_names, values)) for values in grid]
 
     return grid_dicts
-
 
 def train_models(hyperparameter_grid, base_train_params):
     """

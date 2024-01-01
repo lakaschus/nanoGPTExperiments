@@ -72,6 +72,7 @@ compile = True # use PyTorch 2.0 to compile the model to be faster
 experiment_name="nano-gpt-training"
 # Get random base_seed using time
 base_seed = int(time.time())
+weight_init_std = 0.05
 # -----------------------------------------------------------------------------
 config_keys = [k for k,v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str))]
 exec(open('configurator.py').read()) # overrides from command line or config file
@@ -146,7 +147,7 @@ else:
     vocab_size = 50257
 # model init
 model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
-                dropout=dropout, vocab_size=vocab_size, bias=bias)
+                dropout=dropout, vocab_size=vocab_size, bias=bias, weight_init_std=weight_init_std)
 if init_from == 'scratch':
     # init a new model from scratch
     print("Initializing a new model from scratch")
