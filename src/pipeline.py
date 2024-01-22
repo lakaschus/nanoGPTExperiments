@@ -4,6 +4,7 @@ import subprocess
 import numpy as np
 import json
 import argparse
+import train
 
 import itertools
 
@@ -60,31 +61,17 @@ def train_models(hyperparameter_grid, base_train_params):
     logger = logging.getLogger(__name__)
     logging.basicConfig(level=logging.INFO)
 
-    # Iterate over each configuration in the hyperparameter grid
-    for config in hyperparameter_grid:
+    # Iterate over each configuration in the hyperparameter grid; If the grid is empty, go into this loop nevertheless
+    for config in hyperparameter_grid or [None]:
         # Copy the base training parameters and update with the current configuration
         train_params = base_train_params.copy()
         train_params.update(config)
 
-        # Start constructing the train command
-        train_cmd = "python train.py"
-
-        # Add each parameter as a command line argument
-        for key, value in train_params.items():
-            train_cmd += f" --{key}={value}"
-
         # Log and print the command
-        logger.info(f"TRAINING MODEL with: {train_cmd}")
-        print(f"TRAINING MODEL with: {train_cmd}")
+        logger.info(f"TRAINING MODEL with: {train_params}")
 
         # Execute the training command
-        try:
-            subprocess.run(train_cmd, shell=True, check=True)
-        except subprocess.CalledProcessError as e:
-            # Log and handle errors
-            logger.error(f"Error occurred while executing: {train_cmd}")
-            print(f"Error occurred while executing: {train_cmd}")
-            # Add any specific error handling as needed
+        train.main(train_params)
 
 # Parse arg "config_file" from command line
 parser = argparse.ArgumentParser()
