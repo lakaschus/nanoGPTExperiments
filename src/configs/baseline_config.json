@@ -1,0 +1,45 @@
+{
+    "pipeline_params": {
+    },
+    "train_params": {
+        "model": "gpt",
+        "out_dir": "./outputs",
+        "eval_interval": 50,
+        "eval_iters": 50,
+        "log_interval": 10,
+        "always_save_checkpoint": false,
+        "dataset": "shakespeare_char",
+        "gradient_accumulation_steps": 2,
+        "grad_clip": 1.0,
+        "batch_size": 4,
+        "block_size": 32,
+        "n_layer": 6,
+        "n_head": 4,
+        "n_embd": 64,
+        "dropout": 0.1,
+        "learning_rate": 0.001,
+        "max_iters": 1000,
+        "lr_decay_iters": 1000,
+        "min_lr": 0.0001,
+        "weight_decay": 0.01,
+        "beta1": 0.9,
+        "beta2": 0.99,
+        "warmup_iters": 50,
+        "device": "cpu",
+        "compile": false,
+        "experiment_name": "nano-gpt-training-baseline",
+        "azure": false,
+        "base_seed": 123,
+        "dtype": "float16",
+        "bias": true,
+        "weight_init_std": 0.02,
+        "init_from": "scratch",
+        "eval_only": false
+    },
+    "sample_params": {
+        "out_dir": "./outputs",
+        "device": "cpu",
+        "num_samples": 3,
+        "init_from": "resume"
+    }
+}

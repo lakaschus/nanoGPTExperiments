@@ -323,3 +323,8 @@ class GPT(nn.Module):
             idx = torch.cat((idx, idx_next), dim=1)
 
         return idx
+
+# Class SleepGPT that inherits from GPT
+class SleepGPT(GPT):
+    def __init__(self, config):
+        super().__init__(config)

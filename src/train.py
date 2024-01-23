@@ -27,7 +27,7 @@ import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
-from model import GPTConfig, GPT
+from model import GPTConfig, GPT, SleepGPT
 
 from types import SimpleNamespace
 
@@ -40,8 +40,19 @@ def main(args):
 
     import mlflow
     from mlflow.models.signature import infer_signature
+    
     mlflow.set_experiment(conf.experiment_name)
     mlflow.autolog(log_models=True)
+    mlflow.log_artifacts('./outputs')
+    
+    # Get current date and time as string for run name
+    from datetime import datetime
+    now = datetime.now()
+    # yy-mm-dd-hh-mm
+    dt_string = now.strftime("%Y-%m-%d-%H-%M")
+    
+    # Set run name
+    mlflow.set_tag("mlflow.runName", conf.experiment_name + "_" + dt_string)
 
     # Save all the config values to mlflow
     for k, v in args.items():
@@ -110,7 +121,10 @@ def main(args):
         # init a new model from scratch
         print("Initializing a new model from scratch")
         gptconf = GPTConfig(**model_args)
-        model = GPT(gptconf)
+        if conf.model == 'sleepgpt':
+            model = SleepGPT(gptconf)
+        else:
+            model = GPT(gptconf)
     elif conf.init_from == 'resume':
         print(f"Resuming training from {out_dir}")
         # resume training from a checkpoint.

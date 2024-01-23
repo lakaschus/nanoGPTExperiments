@@ -91,5 +91,17 @@
                 "--config_file=./configs/local_config.json",
             ],
         },
+        {
+            "name": "Feat Pipeline",
+            // Set src directory as the current working directory
+            "cwd": "${workspaceFolder}/src",
+            "type": "python",
+            "request": "launch",
+            "program": "pipeline.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--config_file=./configs/feat_config.json",
+            ],
+        },
     ]
 }
