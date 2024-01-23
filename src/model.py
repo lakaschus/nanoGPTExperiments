@@ -326,5 +326,10 @@ class GPT(nn.Module):
 
 # Class SleepGPT that inherits from GPT
 class SleepGPT(GPT):
+    """ SleepGPT inherits from GPT and has one additional method: dream()
+    The dream method works as follows: A few samples are generated from the model. For each sample, the activations and used weights are saved. The strongest activations will be analyzed and the corresponding weights will be enhanced. 
+    
+    ...
+    """
     def __init__(self, config):
         super().__init__(config)

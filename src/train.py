@@ -260,6 +260,9 @@ def main(args):
         # termination conditions
         if iter_num > conf.max_iters:
             break
+        if iter_num % 50 == 0 and model.__class__.__name__ == 'SleepGPT':
+            # TODO: Implement sleep mechanism
+            model = model.sleep()
     if ddp:
         destroy_process_group()
         
