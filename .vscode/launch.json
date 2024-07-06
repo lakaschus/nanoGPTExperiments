@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
@@ -14,10 +14,10 @@
         },
         // Prepare dataset
         {
-            "name": "Prepare Shakespeare dataset",
-            "type": "python",
+            "name": "Prepare dataset",
+            "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/data/shakespeare_char/prepare.py",
+            "program": "${workspaceFolder}/src/data/prepare.py",
             "console": "integratedTerminal"
         },
         // Run train.py with arguments
@@ -25,7 +25,7 @@
             "name": "Azure Training Job Debugging",
             // Set src directory as the current working directory
             "cwd": "${workspaceFolder}/src",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "train.py",
             "console": "integratedTerminal",
@@ -44,21 +44,36 @@
             ],
         },
         {
-            "name": "Train with GPU",
-            "type": "python",
+            "name": "Debug locally with GPU",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/train.py",
             "console": "integratedTerminal",
             "args": [
-                "--batch_size=32",
-                "--compile=False",
-                "--device=gpu"
-            ],
+                "--batch_size",
+                "32",
+                "--device",
+                "cuda",
+                "--gradient_accumulation_steps",
+                "4",
+                "--n_layer",
+                "6",
+                "--n_head",
+                "8",
+                "--n_embd",
+                "128",
+                "--block_size",
+                "128",
+                "--eval_interval",
+                "25",
+                "--max_iters",
+                "5000",
+            ]
         },
         // python sample.py --out_dir=outputs
         {
             "name": "Sample from trained model",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "cwd": "${workspaceFolder}/src",
             "program": "sample.py",
@@ -71,7 +86,7 @@
             "name": "Test Pipeline",
             // Set src directory as the current working directory
             "cwd": "${workspaceFolder}/src",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "pipeline.py",
             "console": "integratedTerminal",
