@@ -18,7 +18,11 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/prepare.py",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "args": [
+                "--dataset_id",
+                "stas/openwebtext-10k"
+            ],
         },
         // Run train.py with arguments
         {
@@ -79,7 +83,8 @@
             "program": "sample.py",
             "console": "integratedTerminal",
             "args": [
-                "--out_dir=outputs"
+                "--out_dir",
+                "../outputs"
             ],
         },
         {

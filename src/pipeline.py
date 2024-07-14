@@ -12,8 +12,8 @@ config_file = parser.parse_args().config_file
 
 with open(config_file) as f:
     params = json.load(f)
-    train_params = params['train_params']
-    sample_params = params['sample_params']
+    train_params = params["train_params"]
+    sample_params = params["sample_params"]
 
 train_cmd = "python train.py"
 for key, value in train_params.items():
@@ -26,7 +26,7 @@ for key, value in sample_params.items():
     sample_cmd += f" --{key}={value}"
 
 print(sample_cmd)
-    
+
 # Step 1: Create a logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
