@@ -17,7 +17,7 @@
             "name": "Prepare dataset",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/data/prepare.py",
+            "program": "${workspaceFolder}/data/prepare.py",
             "console": "integratedTerminal",
             "args": [
                 "--dataset_id",
@@ -72,6 +72,7 @@
                 "25",
                 "--max_iters",
                 "5000",
+                "--azure"
             ]
         },
         // python sample.py --out_dir=outputs

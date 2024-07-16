@@ -16,7 +16,7 @@ def parse_arguments():
     parser.add_argument(
         "--dataset_id",
         type=str,
-        default="stas/openwebtext-10k",
+        default="openwebtext-10k",
         help="HuggingFace dataset ID",
     )
     parser.add_argument(
@@ -101,4 +101,5 @@ def main(args):
 
 if __name__ == "__main__":
     args = parse_arguments()
+    print(args)
     main(args)

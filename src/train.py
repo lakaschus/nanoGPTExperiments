@@ -5,6 +5,12 @@ import argparse
 from contextlib import nullcontext
 from transformers import GPT2Tokenizer
 
+import os
+from azure.ai.ml import MLClient
+from azure.identity import DefaultAzureCredential
+import tempfile
+import azure.ai.ml._artifacts._artifact_utilities as artifact_utils
+
 import numpy as np
 import torch
 from torch.nn.utils import clip_grad_norm_
@@ -40,6 +46,7 @@ def parse_args():
         "--always_save_checkpoint",
         action="store_true",
         help="If True, always save a checkpoint after each eval",
+        default=False,
     )
     parser.add_argument(
         "--init_from",
@@ -128,6 +135,9 @@ def parse_args():
     parser.add_argument(
         "--backend", type=str, default="nccl", help="Backend for distributed training"
     )
+    parser.add_argument(
+        "--azure", action="store_true", help="Use Azure ML datasets", default=False
+    )
 
     # experiment
     parser.add_argument(
@@ -201,6 +211,9 @@ def load_vocab():
 
 def main():
     args = parse_args()
+    print("Arguments:")
+    print(args)
+
     vocab, tokenizer = load_vocab()
 
     total_tokens = 0
@@ -248,14 +261,52 @@ def main():
         else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
     )
 
-    # data loading
+    def get_data(args):
+        if not args.azure:
+            # Local data path
+            data_dir = os.path.join("data", args.dataset)
+            train_data = np.memmap(
+                os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r"
+            )
+            val_data = np.memmap(
+                os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r"
+            )
+        else:
+            # Azure ML data path
+            print("Using Azure ML dataset")
+            try:
+                ml_client = MLClient.from_config(credential=DefaultAzureCredential())
+                dataset = ml_client.data.get(name=args.dataset, version="latest")
 
-    file_dir = os.path.dirname(__file__)
-    data_dir = os.path.join(file_dir, "data", args.dataset)
-    train_data = np.memmap(
-        os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r"
-    )
-    val_data = np.memmap(os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r")
+                base_path = "./data/"
+                train_path = base_path + "train.bin"
+                val_path = base_path + "val.bin"
+
+                print(train_path)
+
+                artifact_utils.download_artifact_from_aml_uri(
+                    uri=dataset.path,
+                    destination=base_path,
+                    datastore_operation=ml_client.datastores,
+                )
+
+                # Read the data
+                train_data = np.fromfile(train_path, dtype=np.uint16)
+                val_data = np.fromfile(val_path, dtype=np.uint16)
+
+                return train_data, val_data
+
+            except Exception as e:
+                print(f"Error accessing Azure ML dataset: {e}")
+                raise
+
+        # Read the data (for both local and Azure cases)
+        train_data = np.fromfile(train_path, dtype=np.uint16)
+        val_data = np.fromfile(val_path, dtype=np.uint16)
+
+        return train_data, val_data
+
+    train_data, val_data = get_data(args)
 
     tokens_per_epoch = len(train_data)
 
@@ -431,4 +482,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with mlflow.start_run() as run:
+        main()

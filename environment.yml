@@ -17,6 +17,7 @@ dependencies:
     - azure-ai-ml
     - pyhocon
     - azureml-mlflow
+    - azureml-fsspec
   - pytorch
   - torchvision
   - torchaudio
