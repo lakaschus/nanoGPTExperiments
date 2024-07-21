@@ -6,10 +6,6 @@ from contextlib import nullcontext
 from transformers import GPT2Tokenizer
 
 import os
-from azure.ai.ml import MLClient
-from azure.identity import DefaultAzureCredential
-import tempfile
-import azure.ai.ml._artifacts._artifact_utilities as artifact_utils
 
 import numpy as np
 import torch
@@ -264,41 +260,16 @@ def main():
     def get_data(args):
         if not args.azure:
             # Local data path
-            data_dir = os.path.join("data", args.dataset)
-            train_data = np.memmap(
-                os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r"
-            )
-            val_data = np.memmap(
-                os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r"
-            )
+            data_dir = os.path.join("src/data", args.dataset.replace("-", "_"))
         else:
-            # Azure ML data path
-            print("Using Azure ML dataset")
-            try:
-                ml_client = MLClient.from_config(credential=DefaultAzureCredential())
-                dataset = ml_client.data.get(name=args.dataset, version="latest")
-
-                base_path = "./data/"
-                train_path = base_path + "train.bin"
-                val_path = base_path + "val.bin"
-
-                print(train_path)
-
-                artifact_utils.download_artifact_from_aml_uri(
-                    uri=dataset.path,
-                    destination=base_path,
-                    datastore_operation=ml_client.datastores,
-                )
-
-                # Read the data
-                train_data = np.fromfile(train_path, dtype=np.uint16)
-                val_data = np.fromfile(val_path, dtype=np.uint16)
-
-                return train_data, val_data
-
-            except Exception as e:
-                print(f"Error accessing Azure ML dataset: {e}")
-                raise
+            data_dir = os.path.join("data", args.dataset.replace("-", "_"))
+        train_data = np.memmap(
+            os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r"
+        )
+        val_data = np.memmap(
+            os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r"
+        )
+        return train_data, val_data
 
         # Read the data (for both local and Azure cases)
         train_data = np.fromfile(train_path, dtype=np.uint16)

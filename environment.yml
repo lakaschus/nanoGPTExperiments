@@ -9,11 +9,13 @@ dependencies:
   - pip
   - pip:
     - numpy
+    - python-dotenv
     - transformers
     - datasets
     - tiktoken
     - mlflow
     - tqdm
+    - azureml-core
     - azure-ai-ml
     - pyhocon
     - azureml-mlflow
