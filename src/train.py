@@ -4,6 +4,8 @@ import math
 import argparse
 from contextlib import nullcontext
 from transformers import GPT2Tokenizer
+from torch.nn import functional as F
+
 
 import os
 
@@ -61,6 +63,9 @@ def parse_args():
     # data
     parser.add_argument(
         "--dataset", type=str, default="openwebtext_10k", help="Dataset to use"
+    )
+    parser.add_argument(
+        "--tokenizer", type=str, default="gpt2", help="Tokenizer to use"
     )
     parser.add_argument(
         "--gradient_accumulation_steps",
@@ -126,7 +131,10 @@ def parse_args():
         help="Data type",
     )
     parser.add_argument(
-        "--compile", action="store_true", help="Use PyTorch 2.0 to compile the model"
+        "--compile",
+        action="store_true",
+        help="Use PyTorch 2.0 to compile the model",
+        default=False,
     )
     parser.add_argument(
         "--backend", type=str, default="nccl", help="Backend for distributed training"
@@ -196,11 +204,16 @@ def estimate_loss(model, get_batch, args, ctx, tokenizer, iter_num):
     return out
 
 
-def load_vocab():
+def load_vocab(type="gpt2"):
     """
     Load the GPT-2 tokenizer and return its vocabulary.
     """
-    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    if type == "gpt2":
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    elif type == "arithmetic":
+        from data.arithmetic_synthetic import ArithmeticTokenizer
+
+        tokenizer = ArithmeticTokenizer()
     vocab = {v: k for k, v in tokenizer.get_vocab().items()}
     return vocab, tokenizer
 
@@ -210,7 +223,7 @@ def main():
     print("Arguments:")
     print(args)
 
-    vocab, tokenizer = load_vocab()
+    vocab, tokenizer = load_vocab(args.tokenizer)
 
     total_tokens = 0
     unique_tokens = set()
@@ -271,34 +284,79 @@ def main():
         )
         return train_data, val_data
 
-        # Read the data (for both local and Azure cases)
-        train_data = np.fromfile(train_path, dtype=np.uint16)
-        val_data = np.fromfile(val_path, dtype=np.uint16)
-
-        return train_data, val_data
-
     train_data, val_data = get_data(args)
 
     tokens_per_epoch = len(train_data)
 
-    def get_batch(split):
+    def get_batch(split, split_token_id=None):
         data = train_data if split == "train" else val_data
-        ix = torch.randint(len(data) - args.block_size, (args.batch_size,))
-        x = torch.stack(
-            [
-                torch.from_numpy((data[i : i + args.block_size]).astype(np.int64))
-                for i in ix
-            ]
-        )
-        y = torch.stack(
-            [
-                torch.from_numpy(
-                    (data[i + 1 : i + 1 + args.block_size]).astype(np.int64)
+
+        if split_token_id is not None:
+            # Find all indices of the split token
+            split_indices = np.where(data == split_token_id)[0]
+
+            # Ensure we have enough complete exercises
+            if len(split_indices) < args.batch_size + 1:
+                raise ValueError(
+                    f"Not enough complete exercises in the {split} dataset"
                 )
-                for i in ix
+
+            # Randomly select the starting points for batch_size number of exercises
+            start_idx = torch.randint(len(split_indices) - 1, (args.batch_size,))
+
+            x = []
+            y = []
+            for idx in start_idx:
+                start = split_indices[idx] + 1  # Start after the previous split token
+                end = split_indices[idx + 1] + 1  # Include the current split token
+
+                exercise = data[start:end]
+                equal_sign_pos = np.where(exercise == tokenizer.vocab["="])[0][0]
+                newline_pos = np.where(exercise == tokenizer.vocab["\n"])[0][0]
+
+                x_seq = torch.from_numpy(exercise[: newline_pos + 1].astype(np.int64))
+                y_seq = torch.full_like(
+                    x_seq, tokenizer.vocab["_"]
+                )  # Fill with mask token
+
+                # Only keep the tokens after '=' in y
+                y_seq[equal_sign_pos + 1 :] = x_seq[equal_sign_pos + 1 :]
+
+                x.append(x_seq[:-1])
+                y.append(y_seq[1:])
+
+            # Pad sequences to the length of the longest sequence in the batch
+            max_len = max(len(seq) for seq in x)
+            x = [
+                F.pad(seq, (0, max_len - len(seq)), value=tokenizer.vocab["<pad>"])
+                for seq in x
             ]
-        )
-        x, y = x.to(device), y.to(device)
+            y = [
+                F.pad(seq, (0, max_len - len(seq)), value=tokenizer.vocab["<pad>"])
+                for seq in y
+            ]
+
+            x = torch.stack(x).to(device)
+            y = torch.stack(y).to(device)
+        else:
+            # Original method using block_size
+            ix = torch.randint(len(data) - args.block_size, (args.batch_size,))
+            x = torch.stack(
+                [
+                    torch.from_numpy((data[i : i + args.block_size]).astype(np.int64))
+                    for i in ix
+                ]
+            )
+            y = torch.stack(
+                [
+                    torch.from_numpy(
+                        (data[i + 1 : i + 1 + args.block_size]).astype(np.int64)
+                    )
+                    for i in ix
+                ]
+            )
+            x, y = x.to(device), y.to(device)
+
         return x, y
 
     # model init
@@ -308,7 +366,7 @@ def main():
         n_embd=args.n_embd,
         block_size=args.block_size,
         dropout=args.dropout,
-        vocab_size=50257,  # default to GPT-2 vocab size
+        vocab_size=len(vocab),  # default to GPT-2 vocab size
         bias=args.bias,
     )
 
@@ -363,7 +421,11 @@ def main():
         model = DDP(model, device_ids=[ddp_local_rank])
 
     # training loop
-    X, Y = get_batch("train")  # fetch the very first batch
+    global START_IDX
+    START_IDX = 0
+    X, Y = get_batch(
+        "train", split_token_id=tokenizer.split_token_id
+    )  # fetch the very first batch
     t0 = time.time()
     iter_num = 0  # number of iterations in the lifetime of this process
     raw_model = model.module if ddp else model  # unwrap DDP container if needed

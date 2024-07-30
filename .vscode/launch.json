@@ -75,6 +75,68 @@
                 "--azure"
             ]
         },
+        {
+            "name": "Debug locally with GPU - Arithmetic Synthetic Data",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--batch_size",
+                "32",
+                "--device",
+                "cuda",
+                "--gradient_accumulation_steps",
+                "4",
+                "--n_layer",
+                "6",
+                "--n_head",
+                "4",
+                "--n_embd",
+                "64",
+                "--block_size",
+                "64",
+                "--eval_interval",
+                "25",
+                "--max_iters",
+                "500",
+                "--dataset",
+                "arithmetic_dataset",
+                "--tokenizer",
+                "arithmetic",
+            ]
+        },
+        {
+            "name": "Train locally with GPU - Arithmetic Synthetic Data",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--batch_size",
+                "32",
+                "--device",
+                "cuda",
+                "--gradient_accumulation_steps",
+                "4",
+                "--n_layer",
+                "8",
+                "--n_head",
+                "8",
+                "--n_embd",
+                "64",
+                "--block_size",
+                "32",
+                "--eval_interval",
+                "100",
+                "--max_iters",
+                "5000",
+                "--dataset",
+                "arithmetic_dataset",
+                "--tokenizer",
+                "arithmetic",
+            ]
+        },
         // python sample.py --out_dir=outputs
         {
             "name": "Sample from trained model",
@@ -86,6 +148,21 @@
             "args": [
                 "--out_dir",
                 "../outputs"
+            ],
+        },
+        {
+            "name": "Sample from trained arithmetic model",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/src",
+            "program": "sample.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--out_dir",
+                "../outputs",
+                "--tokenizer",
+                "arithmetic",
+                "--interactive"
             ],
         },
         {

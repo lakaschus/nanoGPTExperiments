@@ -5,10 +5,16 @@ import torch
 import tiktoken
 from model import GPTConfig, GPT
 import argparse
+from train import load_vocab
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Sample from a trained GPT model")
+    parser.add_argument(
+        "--tokenizer",
+        type=str,
+        default="gpt2",
+    )
     parser.add_argument(
         "--init_from",
         type=str,
@@ -33,7 +39,7 @@ def parse_arguments():
     parser.add_argument(
         "--max_new_tokens",
         type=int,
-        default=500,
+        default=10,
         help="Number of tokens generated in each sample",
     )
     parser.add_argument(
@@ -68,6 +74,12 @@ def parse_arguments():
         "--compile",
         action="store_true",
         help="Use PyTorch 2.0 to compile the model to be faster",
+    )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="If True, give prompt as input",
+        default=False,
     )
     return parser.parse_args()
 
@@ -111,48 +123,59 @@ def main(args):
         model = torch.compile(model)
 
     # Set up encoding/decoding
-    load_meta = False
     if (
         args.init_from == "resume"
         and "config" in checkpoint
         and "dataset" in checkpoint["config"]
     ):
         meta_path = os.path.join("data", checkpoint["config"]["dataset"], "meta.pkl")
-        load_meta = os.path.exists(meta_path)
-    if load_meta:
-        print(f"Loading meta from {meta_path}...")
-        with open(meta_path, "rb") as f:
-            meta = pickle.load(f)
-        stoi, itos = meta["stoi"], meta["itos"]
-        encode = lambda s: [stoi[c] for c in s]
-        decode = lambda l: "".join([itos[i] for i in l])
+        vocab, tokenizer = load_vocab(type=args.tokenizer)
+        encode = tokenizer.encode
+        decode = tokenizer.decode
+
     else:
         print("No meta.pkl found, assuming GPT-2 encodings...")
         enc = tiktoken.get_encoding("gpt2")
         encode = lambda s: enc.encode(s, allowed_special={"<|endoftext|>"})
         decode = lambda l: enc.decode(l)
 
-    start = args.start
-    start_ids = encode(start)
-    x = torch.tensor(start_ids, dtype=torch.long, device=args.device)[None, ...]
-
     # Generate samples
     with torch.no_grad():
         with ctx:
-            for k in range(args.num_samples):
-                y = model.generate(
-                    x,
-                    args.max_new_tokens,
-                    temperature=args.temperature,
-                    top_k=args.top_k,
-                )
-                sample = decode(y[0].tolist())
-                print(sample)
-                with open(f"{args.out_dir}/sample.txt", "a") as f:
-                    f.write(f"Sample {k}:\n")
-                    f.write(sample)
-                    f.write("\n\n")
-                print("---------------")
+            if not args.interactive:
+                for k in range(args.num_samples):
+                    y = model.generate(
+                        x,
+                        args.max_new_tokens,
+                        temperature=args.temperature,
+                        top_k=args.top_k,
+                    )
+                    sample = decode(y[0].tolist())
+                    print(sample)
+                    with open(f"{args.out_dir}/sample.txt", "a") as f:
+                        f.write(f"Sample {k}:\n")
+                        f.write(sample)
+                        f.write("\n\n")
+                    print("---------------")
+            elif args.interactive:
+                while True:
+                    print("Prompt:")
+                    prompt = input()
+                    if prompt == "exit":
+                        break
+                    prompt_ids = encode(prompt)
+                    x = torch.tensor(prompt_ids, dtype=torch.long, device=args.device)[
+                        None, ...
+                    ]
+                    y = model.generate(
+                        x,
+                        args.max_new_tokens,
+                        temperature=args.temperature,
+                        top_k=args.top_k,
+                    )
+                    sample = decode(y[0].tolist())
+                    print(sample)
+                    print("---------------")
 
 
 if __name__ == "__main__":
