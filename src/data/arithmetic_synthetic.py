@@ -67,14 +67,20 @@ def main():
     print(f"Generating additions up to {max_number}...")
     additions = generate_additions(max_number)
     # shuffle data
-    np.random.shuffle(additions)
+    # np.random.shuffle(additions)
     print(f"Total number of additions: {len(additions)}")
+
+    # sort additions by length
+    additions.sort(key=len)
 
     print("Processing dataset...")
     tokenized_data = process_dataset(additions)
 
     # Split the data into training and validation sets
     split_index = int(0.9 * len(tokenized_data))  # 90% for training, 10% for validation
+    # For each order of magnitude, choose 90% for training and 10% for validation
+    # TODO
+
     train_data = tokenized_data[:split_index]
     val_data = tokenized_data[split_index:]
 

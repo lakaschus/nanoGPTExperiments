@@ -56,7 +56,7 @@ def parse_args():
     parser.add_argument(
         "--num_sample_tokens",
         type=int,
-        default=10,
+        default=20,
         help="Number of tokens to sample during evaluation",
     )
 
@@ -89,7 +89,7 @@ def parse_args():
 
     # optimizer
     parser.add_argument(
-        "--learning_rate", type=float, default=6e-4, help="Learning rate"
+        "--learning_rate", type=float, default=1e-4, help="Learning rate"
     )
     parser.add_argument(
         "--max_iters",
@@ -170,13 +170,13 @@ def get_lr(iter_num, args):
 
 
 @torch.no_grad()
-def estimate_loss(model, get_batch, args, ctx, tokenizer, iter_num):
+def estimate_loss(model, data_loader, args, ctx, tokenizer, iter_num):
     out = {}
     model.eval()
     for split in ["train", "val"]:
         losses = torch.zeros(args.eval_iters)
         for k in range(args.eval_iters):
-            X, Y = get_batch(split)
+            X, Y = data_loader.get_batch(split, mode="eval")
             with ctx:
                 logits, loss = model(X, Y)
             losses[k] = loss.item()
@@ -184,7 +184,15 @@ def estimate_loss(model, get_batch, args, ctx, tokenizer, iter_num):
 
     # Sample tokens
     x = torch.zeros((1, 1), dtype=torch.long).to(args.device)
-    sample_tokens = []
+    if args.tokenizer == "arithmetic":
+        sample_tokens = [
+            np.random.randint(0, 4),
+            tokenizer.vocab["+"],
+            np.random.randint(0, 4),
+            tokenizer.vocab["="],
+        ]
+    else:
+        sample_tokens = []
     for _ in range(args.num_sample_tokens):
         with ctx:
             logits, _ = model(x)
@@ -216,6 +224,121 @@ def load_vocab(type="gpt2"):
         tokenizer = ArithmeticTokenizer()
     vocab = {v: k for k, v in tokenizer.get_vocab().items()}
     return vocab, tokenizer
+
+
+class DataLoader:
+    def __init__(self, args, tokenizer, device):
+        self.args = args
+        self.tokenizer = tokenizer
+        self.device = device
+        self.train_data, self.val_data = self.get_data()
+        self.tokens_per_epoch = len(self.train_data)
+        self.training_stage = 0
+        self.training_example_id = 0
+        self.batch_calls = 0
+
+    def update_training_stage(self):
+        # Increment the training stage after 10 calls
+        self.batch_calls += 1
+        self.training_example_id += 1
+        if self.training_example_id > self.training_stage:
+            self.training_example_id = 0
+
+        if self.batch_calls % 200 == 0:
+            self.training_stage += 1
+
+    def get_data(self):
+        if not self.args.azure:
+            # Local data path
+            data_dir = os.path.join("src/data", self.args.dataset.replace("-", "_"))
+        else:
+            data_dir = os.path.join("data", self.args.dataset.replace("-", "_"))
+        train_data = np.memmap(
+            os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r"
+        )
+        val_data = np.memmap(
+            os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r"
+        )
+        return train_data, val_data
+
+    def get_batch(self, split, mode="train"):
+        if mode == "train":
+            self.update_training_stage()
+
+        data = self.train_data if split == "train" else self.val_data
+
+        if self.tokenizer.split_token_id is not None:
+            return self._get_split_batch(data)
+        else:
+            return self._get_block_batch(data)
+
+    def _get_split_batch(self, data):
+        # Find all indices of the split token
+        split_indices = np.where(data == self.tokenizer.split_token_id)[0]
+
+        # Ensure we have enough complete exercises
+        if len(split_indices) < self.args.batch_size + 1:
+            raise ValueError(f"Not enough complete exercises in the dataset")
+
+        # torch array with self.training_example_id times the batch size
+        start_idx = torch.full((self.args.batch_size,), self.training_example_id)
+        # start_idx = torch.randint(len(split_indices) - 1, (self.args.batch_size,))
+
+        x = []
+        y = []
+        for idx in start_idx:
+            start = split_indices[idx] + 1  # Start after the previous split token
+            end = split_indices[idx + 1] + 1  # Include the current split token
+
+            exercise = data[start:end]
+            equal_sign_pos = np.where(exercise == self.tokenizer.vocab["="])[0][0]
+            newline_pos = np.where(exercise == self.tokenizer.vocab["\n"])[0][0]
+
+            x_seq = torch.from_numpy(exercise[: newline_pos + 1].astype(np.int64))
+            y_seq = torch.full_like(
+                x_seq, self.tokenizer.vocab["_"]
+            )  # Fill with mask token
+
+            # Only keep the tokens after '=' in y
+            y_seq[equal_sign_pos + 1 :] = x_seq[equal_sign_pos + 1 :]
+
+            x.append(x_seq[:-1])
+            y.append(y_seq[1:])
+
+        # Pad sequences to the length of the longest sequence in the batch
+        max_len = max(len(seq) for seq in x)
+        x = [
+            F.pad(seq, (0, max_len - len(seq)), value=self.tokenizer.vocab["<pad>"])
+            for seq in x
+        ]
+        y = [
+            F.pad(seq, (0, max_len - len(seq)), value=self.tokenizer.vocab["<pad>"])
+            for seq in y
+        ]
+
+        x = torch.stack(x).to(self.device)
+        y = torch.stack(y).to(self.device)
+
+        return x, y
+
+    def _get_block_batch(self, data):
+        ix = torch.randint(len(data) - self.args.block_size, (self.args.batch_size,))
+        x = torch.stack(
+            [
+                torch.from_numpy((data[i : i + self.args.block_size]).astype(np.int64))
+                for i in ix
+            ]
+        )
+        y = torch.stack(
+            [
+                torch.from_numpy(
+                    (data[i + 1 : i + 1 + self.args.block_size]).astype(np.int64)
+                )
+                for i in ix
+            ]
+        )
+        x, y = x.to(self.device), y.to(self.device)
+        return x, y
 
 
 def main():
@@ -270,94 +393,7 @@ def main():
         else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
     )
 
-    def get_data(args):
-        if not args.azure:
-            # Local data path
-            data_dir = os.path.join("src/data", args.dataset.replace("-", "_"))
-        else:
-            data_dir = os.path.join("data", args.dataset.replace("-", "_"))
-        train_data = np.memmap(
-            os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r"
-        )
-        val_data = np.memmap(
-            os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r"
-        )
-        return train_data, val_data
-
-    train_data, val_data = get_data(args)
-
-    tokens_per_epoch = len(train_data)
-
-    def get_batch(split, split_token_id=None):
-        data = train_data if split == "train" else val_data
-
-        if split_token_id is not None:
-            # Find all indices of the split token
-            split_indices = np.where(data == split_token_id)[0]
-
-            # Ensure we have enough complete exercises
-            if len(split_indices) < args.batch_size + 1:
-                raise ValueError(
-                    f"Not enough complete exercises in the {split} dataset"
-                )
-
-            # Randomly select the starting points for batch_size number of exercises
-            start_idx = torch.randint(len(split_indices) - 1, (args.batch_size,))
-
-            x = []
-            y = []
-            for idx in start_idx:
-                start = split_indices[idx] + 1  # Start after the previous split token
-                end = split_indices[idx + 1] + 1  # Include the current split token
-
-                exercise = data[start:end]
-                equal_sign_pos = np.where(exercise == tokenizer.vocab["="])[0][0]
-                newline_pos = np.where(exercise == tokenizer.vocab["\n"])[0][0]
-
-                x_seq = torch.from_numpy(exercise[: newline_pos + 1].astype(np.int64))
-                y_seq = torch.full_like(
-                    x_seq, tokenizer.vocab["_"]
-                )  # Fill with mask token
-
-                # Only keep the tokens after '=' in y
-                y_seq[equal_sign_pos + 1 :] = x_seq[equal_sign_pos + 1 :]
-
-                x.append(x_seq[:-1])
-                y.append(y_seq[1:])
-
-            # Pad sequences to the length of the longest sequence in the batch
-            max_len = max(len(seq) for seq in x)
-            x = [
-                F.pad(seq, (0, max_len - len(seq)), value=tokenizer.vocab["<pad>"])
-                for seq in x
-            ]
-            y = [
-                F.pad(seq, (0, max_len - len(seq)), value=tokenizer.vocab["<pad>"])
-                for seq in y
-            ]
-
-            x = torch.stack(x).to(device)
-            y = torch.stack(y).to(device)
-        else:
-            # Original method using block_size
-            ix = torch.randint(len(data) - args.block_size, (args.batch_size,))
-            x = torch.stack(
-                [
-                    torch.from_numpy((data[i : i + args.block_size]).astype(np.int64))
-                    for i in ix
-                ]
-            )
-            y = torch.stack(
-                [
-                    torch.from_numpy(
-                        (data[i + 1 : i + 1 + args.block_size]).astype(np.int64)
-                    )
-                    for i in ix
-                ]
-            )
-            x, y = x.to(device), y.to(device)
-
-        return x, y
+    data_loader = DataLoader(args, tokenizer, device)
 
     # model init
     model_args = dict(
@@ -420,13 +456,7 @@ def main():
     if ddp:
         model = DDP(model, device_ids=[ddp_local_rank])
 
-    # training loop
-    global START_IDX
-    START_IDX = 0
-    X, Y = get_batch(
-        "train", split_token_id=tokenizer.split_token_id
-    )  # fetch the very first batch
-    t0 = time.time()
+    X, Y = data_loader.get_batch("train", mode="eval")  # fetch the very first batch
     iter_num = 0  # number of iterations in the lifetime of this process
     raw_model = model.module if ddp else model  # unwrap DDP container if needed
 
@@ -439,14 +469,16 @@ def main():
         total_tokens += args.batch_size * args.block_size
         unique_tokens.update(X.unique().cpu().numpy())
 
-        if total_tokens >= tokens_per_epoch * (epoch + 1):
+        if total_tokens >= data_loader.tokens_per_epoch * (epoch + 1):
             epoch += 1
             mlflow.log_metric("epochs_completed", epoch, step=iter_num)
             print(f"Completed epoch {epoch} at iteration {iter_num}")
 
         # evaluate the loss on train/val sets and write checkpoints
         if iter_num % args.eval_interval == 0 and master_process:
-            losses = estimate_loss(model, get_batch, args, ctx, tokenizer, iter_num)
+            losses = estimate_loss(model, data_loader, args, ctx, tokenizer, iter_num)
+            print(f"Training stage: {data_loader.training_stage}")
+            print(f"Learning rate: {lr}")
             print(
                 f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
             )
@@ -454,9 +486,12 @@ def main():
             mlflow.log_metric("unique_tokens", len(unique_tokens), step=iter_num)
             mlflow.log_metric("train_loss", losses["train"], step=iter_num)
             mlflow.log_metric("val_loss", losses["val"], step=iter_num)
+            mlflow.log_metric("learning_rate", lr, step=iter_num)
             mlflow.log_metric(
                 "current_epoch",
-                epoch + (total_tokens % tokens_per_epoch) / tokens_per_epoch,
+                epoch
+                + (total_tokens % data_loader.tokens_per_epoch)
+                / data_loader.tokens_per_epoch,
                 step=iter_num,
             )
             if losses["val"] < best_val_loss or args.always_save_checkpoint:
@@ -493,7 +528,7 @@ def main():
                     loss / args.gradient_accumulation_steps
                 )  # scale the loss to account for gradient accumulation
             # immediately async prefetch next batch while model is doing the forward pass on the GPU
-            X, Y = get_batch("train")
+            X, Y = data_loader.get_batch("train")
             # backward pass, with gradient scaling if training in fp16
             scaler.scale(loss).backward()
         if args.grad_clip != 0.0:
