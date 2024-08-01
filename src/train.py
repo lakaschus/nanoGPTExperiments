@@ -186,23 +186,19 @@ def estimate_loss(model, data_loader, args, ctx, tokenizer, iter_num):
     x = torch.zeros((1, 1), dtype=torch.long).to(args.device)
     if args.tokenizer == "arithmetic":
         sample_tokens = [
-            np.random.randint(0, 4),
+            0,  # np.random.randint(0, 4),
             tokenizer.vocab["+"],
-            np.random.randint(0, 4),
+            1,  # np.random.randint(0, 4),
             tokenizer.vocab["="],
         ]
     else:
         sample_tokens = []
-    for _ in range(args.num_sample_tokens):
-        with ctx:
-            logits, _ = model(x)
-        probs = torch.softmax(logits[:, -1, :], dim=-1)
-        x_next = torch.multinomial(probs, num_samples=1)
-        sample_tokens.append(x_next.item())
-        x = torch.cat((x, x_next), dim=1)
-
+    sample = model.generate(
+        torch.tensor(sample_tokens, dtype=torch.long).unsqueeze(0).to(args.device),
+        args.num_sample_tokens,
+    )
     # Decode sampled tokens
-    decoded_sample = tokenizer.decode(sample_tokens)
+    decoded_sample = tokenizer.decode(sample[0])
     print(f"Sampled text: {decoded_sample}\n")
 
     # Log sampled text to MLflow
@@ -244,7 +240,7 @@ class DataLoader:
         if self.training_example_id > self.training_stage:
             self.training_example_id = 0
 
-        if self.batch_calls % 200 == 0:
+        if self.batch_calls % 1000 == 0:
             self.training_stage += 1
 
     def get_data(self):

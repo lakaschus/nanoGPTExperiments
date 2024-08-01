@@ -120,9 +120,9 @@
                 "--gradient_accumulation_steps",
                 "1",
                 "--n_layer",
-                "12",
+                "6",
                 "--n_head",
-                "12",
+                "6",
                 "--n_embd",
                 "72",
                 "--block_size",
@@ -139,6 +139,8 @@
                 "arithmetic_dataset",
                 "--tokenizer",
                 "arithmetic",
+                "--num_sample_tokens",
+                "1"
             ]
         },
         // python sample.py --out_dir=outputs
